@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: system-ui; margin: 0; background-color: #000; color: white; height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    .header { background: white; color: black; padding: 12px 20px; display: flex; align-items: center; justify-content: center; position: relative; }
+    .back-btn { position: absolute; left: 20px; cursor: pointer; border: 2px solid black; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    .instruction { font-weight: 600; font-size: 16px; }
+
+    /* Ready Screen */
+    #ready-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; color: black; }
+    .box-container { display: flex; gap: 40px; margin-bottom: 50px; }
+    .card { width: 220px; height: 250px; border: 2px solid #27AE60; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 15px; transition: 150ms; }
+    .card.inactive { border-color: #E0E0E0; color: #999; }
+    .icon { font-size: 50px; }
+    .sub { font-size: 12px; color: #666; margin-top: 4px; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    #btn-compare { background: black; color: white; padding: 15px 80px; border-radius: 10px; font-weight: 800; border: none; cursor: pointer; }
+    #btn-compare:disabled { background: #E0E0E0; cursor: not-allowed; color: #888; }
+
+    /* Workspace */
+    #workspace-container { display:none; flex:1; flex-direction:column; }
+    #workspace { flex: 1; position: relative; display: flex; justify-content: space-around; align-items: center; padding: 40px; }
+    .stage { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .stage-label { font-size: 18px; font-weight: 700; color: #EEE; letter-spacing: 0.2px; }
+    .img-wrap { position: relative; background: #111; border: 1px solid #333; box-shadow: 0 0 20px rgba(255,255,255,0.05); padding: 10px; border-radius: 12px; }
+    .img-wrap img { display:block; max-width: 350px; height: auto; border-radius: 8px; }
+
+    /* Design overlay highlight */
+    .overlay { position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none; }
+    #target-box {
+      position:absolute;
+      border: 2px solid rgba(255, 87, 34, 0.95);
+      background: rgba(255, 87, 34, 0.12);
+      border-radius: 10px;
+      display:none;
+    }
+
+    /* Draggable target */
+    #draggable-component {
+      position: absolute;
+      cursor: grab;
+      z-index: 100;
+      border-radius: 10px;
+      border: 1px solid rgba(242, 169, 59, 0.6);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      display:none;
+      user-select: none;
+    }
+    #draggable-component:active { cursor: grabbing; box-shadow: 0 0 15px #F2A93B; }
+
+    /* Snap X */
+    #snap-x {
+      position:absolute;
+      width: 18px; height: 18px;
+      border-radius: 999px;
+      background: #e53935;
+      color: #fff;
+      font-weight: 900;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      transform: translate(-50%, -50%);
+      z-index: 120;
+      pointer-events:none;
+    }
+
+    /* Marks */
+    .mark {
+      position:absolute;
+      transform: translate(-50%, -50%);
+      padding: 4px 6px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      background: #fff;
+      color: #111;
+      z-index: 110;
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+      pointer-events:none;
+      white-space: nowrap;
+    }
+    .mark.ok { color: #2e7d32; }
+    .mark.bad { color: #e53935; }
+
+    .hintbar {
+      position:absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      padding: 10px 12px;
+      border-radius: 12px;
+      max-width: 640px;
+      font-size: 12px;
+      color: rgba(255,255,255,.9);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="ready-screen">
+    <div class="box-container">
+      <div id="card-shot" class="card inactive">
+        <div class="icon">📱</div>
+        <div class="text">Select a<br>screenshot</div>
+        <div id="shot-sub" class="sub"></div>
+      </div>
+      <div id="card-design" class="card inactive">
+        <div class="icon">🎨</div>
+        <div class="text">Select the<br>design frame</div>
+        <div id="design-sub" class="sub"></div>
+      </div>
+    </div>
+    <button id="btn-compare" disabled>Compare</button>
+  </div>
+
+  <div id="workspace-container">
+    <div class="header">
+      <div class="back-btn" id="btn-back">←</div>
+      <div class="instruction" id="header-text">Drag the target component from design frame to screenshot</div>
+    </div>
+
+    <div id="workspace">
+      <div class="stage">
+        <div class="stage-label">Screenshot</div>
+        <div class="img-wrap" id="shot-wrap">
+          <img id="shot-img" />
+          <div class="overlay" id="shot-overlay"></div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div class="stage-label">Design frame</div>
+        <div class="img-wrap" id="design-wrap">
+          <img id="design-img" />
+          <div class="overlay">
+            <div id="target-box"></div>
+          </div>
+        </div>
+      </div>
+
+      <img id="draggable-component" />
+      <div id="snap-x">×</div>
+      <div class="hintbar" id="hintbar">Select a target layer inside the design frame in the canvas.</div>
+    </div>
+  </div>
+
+  <script>
+    const btnCompare = document.getElementById('btn-compare');
+    const readyScreen = document.getElementById('ready-screen');
+    const workContainer = document.getElementById('workspace-container');
+
+    const cardShot = document.getElementById('card-shot');
+    const cardDesign = document.getElementById('card-design');
+    const shotSub = document.getElementById('shot-sub');
+    const designSub = document.getElementById('design-sub');
+
+    const shotImg = document.getElementById('shot-img');
+    const designImg = document.getElementById('design-img');
+    const designWrap = document.getElementById('design-wrap');
+    const shotWrap = document.getElementById('shot-wrap');
+
+    const targetBox = document.getElementById('target-box');
+    const dragComp = document.getElementById('draggable-component');
+    const snapX = document.getElementById('snap-x');
+    const hintbar = document.getElementById('hintbar');
+
+    const shotOverlay = document.getElementById('shot-overlay');
+
+    let screenshotAbs = null;
+    let designAbs = null;
+    let targetRel = null; // {x,y,w,h} relative to design frame abs
+    let dragging = false;
+    let shiftX = 0, shiftY = 0;
+
+    function bytesToUrl(bytes) {
+      const blob = new Blob([bytes], { type: "image/png" });
+      return URL.createObjectURL(blob);
+    }
+
+    function setReadyUI(valid, designName, shotName) {
+      btnCompare.disabled = !valid;
+      if (valid) {
+        cardShot.classList.remove('inactive');
+        cardDesign.classList.remove('inactive');
+        cardShot.querySelector('.text').innerText = "Screenshot\nready";
+        cardDesign.querySelector('.text').innerText = "Design frame\nready";
+        shotSub.textContent = shotName || "";
+        designSub.textContent = designName || "";
+      } else {
+        cardShot.classList.add('inactive');
+        cardDesign.classList.add('inactive');
+        cardShot.querySelector('.text').innerText = "Select a\nscreenshot";
+        cardDesign.querySelector('.text').innerText = "Select the\ndesign frame";
+        shotSub.textContent = "";
+        designSub.textContent = "";
+      }
+    }
+
+    btnCompare.onclick = () => parent.postMessage({ pluginMessage: { type: 'start-compare' } }, '*');
+
+    document.getElementById('btn-back').onclick = () => {
+      workContainer.style.display = 'none';
+      readyScreen.style.display = 'flex';
+      targetBox.style.display = "none";
+      dragComp.style.display = "none";
+      shotOverlay.innerHTML = "";
+      parent.postMessage({ pluginMessage: { type: 'exit-compare' } }, '*');
+    };
+
+    function enterWorkspace(shotBytes, designBytes, _shotAbs, _designAbs, hint) {
+      readyScreen.style.display = 'none';
+      workContainer.style.display = 'flex';
+
+      screenshotAbs = _shotAbs;
+      designAbs = _designAbs;
+
+      shotImg.src = bytesToUrl(shotBytes);
+      designImg.src = bytesToUrl(designBytes);
+
+      hintbar.textContent = hint || "Select a target layer inside the design frame in the canvas.";
+    }
+
+    function getImgFit(imgEl, wrapEl) {
+      // img is inside wrap with padding; use bounding rect difference
+      const w = wrapEl.getBoundingClientRect();
+      const i = imgEl.getBoundingClientRect();
+      return { left: i.left - w.left, top: i.top - w.top, w: i.width, h: i.height, wrapW: w.width, wrapH: w.height };
+    }
+
+    function showTargetBox() {
+      if (!targetRel || !designAbs) return;
+
+      const fit = getImgFit(designImg, designWrap);
+
+      const sx = fit.w / designAbs.w;
+      const sy = fit.h / designAbs.h;
+
+      const x = fit.left + targetRel.x * sx;
+      const y = fit.top + targetRel.y * sy;
+      const w = targetRel.w * sx;
+      const h = targetRel.h * sy;
+
+      targetBox.style.display = "block";
+      targetBox.style.left = x + "px";
+      targetBox.style.top = y + "px";
+      targetBox.style.width = w + "px";
+      targetBox.style.height = h + "px";
+    }
+
+    function setDraggableImage(targetBytes) {
+      dragComp.src = bytesToUrl(targetBytes);
+      dragComp.style.display = 'block';
+
+      // Start near the design frame
+      const wrapRect = designWrap.getBoundingClientRect();
+      const rootRect = document.getElementById("workspace").getBoundingClientRect();
+
+      // Put it roughly centered on the targetBox if exists
+      const tb = targetBox.getBoundingClientRect();
+      const startLeft = (tb.left - rootRect.left) + 20;
+      const startTop  = (tb.top  - rootRect.top)  + 20;
+
+      dragComp.style.left = `${Math.max(40, startLeft)}px`;
+      dragComp.style.top = `${Math.max(60, startTop)}px`;
+
+      makeDraggable(dragComp);
+    }
+
+    function showSnap(atX, atY) {
+      snapX.style.display = "flex";
+      snapX.style.left = atX + "px";
+      snapX.style.top = atY + "px";
+      setTimeout(() => snapX.style.display = "none", 500);
+    }
+
+    function addMark(x, y, dx, dy, ok) {
+      const div = document.createElement("div");
+      div.className = `mark ${ok ? "ok" : "bad"}`;
+      div.style.left = x + "px";
+      div.style.top = y + "px";
+      div.textContent = `dx ${dx.toFixed(1)}  dy ${dy.toFixed(1)}`;
+      shotOverlay.appendChild(div);
+    }
+
+    function computeExpectedCenterInShot() {
+      // Map target center by relative ratio between design frame and screenshot image (MVP assumption)
+      if (!targetRel || !designAbs || !screenshotAbs) return null;
+
+      const dFit = getImgFit(designImg, designWrap);
+      const sFit = getImgFit(shotImg, shotWrap);
+
+      const cxRel = (targetRel.x + targetRel.w / 2) / designAbs.w;
+      const cyRel = (targetRel.y + targetRel.h / 2) / designAbs.h;
+
+      const expectedCx = sFit.left + cxRel * sFit.w;
+      const expectedCy = sFit.top + cyRel * sFit.h;
+
+      return { x: expectedCx, y: expectedCy };
+    }
+
+    function makeDraggable(el) {
+      el.onmousedown = (e) => {
+        dragging = true;
+        const rect = el.getBoundingClientRect();
+        shiftX = e.clientX - rect.left;
+        shiftY = e.clientY - rect.top;
+
+        document.onmousemove = (ev) => {
+          if (!dragging) return;
+          const root = document.getElementById("workspace").getBoundingClientRect();
+          el.style.left = (ev.clientX - root.left - shiftX) + 'px';
+          el.style.top  = (ev.clientY - root.top  - shiftY) + 'px';
+
+          // Snap hint: show X when close to expected center
+          const expected = computeExpectedCenterInShot();
+          if (!expected) return;
+
+          const elRect = el.getBoundingClientRect();
+          const cx = (elRect.left + elRect.width / 2) - root.left;
+          const cy = (elRect.top + elRect.height / 2) - root.top;
+
+          // expected is inside shotWrap coordinate; convert to workspace coordinate:
+          const shotWrapRect = shotWrap.getBoundingClientRect();
+          const ex = (shotWrapRect.left - root.left) + expected.x;
+          const ey = (shotWrapRect.top  - root.top)  + expected.y;
+
+          const dx = cx - ex;
+          const dy = cy - ey;
+
+          if (Math.abs(dx) <= 8 && Math.abs(dy) <= 8) {
+            showSnap(cx, cy);
+          }
+        };
+
+        document.onmouseup = (ev) => {
+          if (!dragging) return;
+          dragging = false;
+          document.onmousemove = null;
+          document.onmouseup = null;
+
+          // Drop -> create mark dx/dy vs expected
+          const expected = computeExpectedCenterInShot();
+          if (!expected) return;
+
+          const root = document.getElementById("workspace").getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const cx = (elRect.left + elRect.width / 2) - root.left;
+          const cy = (elRect.top + elRect.height / 2) - root.top;
+
+          const shotWrapRect = shotWrap.getBoundingClientRect();
+          const ex = (shotWrapRect.left - root.left) + expected.x;
+          const ey = (shotWrapRect.top  - root.top)  + expected.y;
+
+          const dx = cx - ex;
+          const dy = cy - ey;
+
+          // ok threshold
+          const ok = Math.abs(dx) <= 4 && Math.abs(dy) <= 4;
+
+          // mark at drop point, but inside shot overlay coordinate:
+          const markX = cx - (shotWrapRect.left - root.left);
+          const markY = cy - (shotWrapRect.top  - root.top);
+
+          addMark(markX, markY, dx, dy, ok);
+        };
+      };
+    }
+
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+
+      if (msg.type === 'selection-valid') {
+        setReadyUI(msg.valid, msg.designName, msg.shotName);
+      }
+
+      if (msg.type === 'error') {
+        hintbar.textContent = msg.message;
+      }
+
+      if (msg.type === 'receive-images') {
+        enterWorkspace(msg.screenshotBytes, msg.designBytes, msg.screenshotAbs, msg.designAbs, msg.hint);
+      }
+
+      if (msg.type === 'target-selected') {
+        // update highlight + draggable
+        targetRel = msg.targetRel;
+        hintbar.textContent = `Selected: ${msg.targetName}. Drag it onto screenshot.`;
+        // Wait image layout, then draw box
+        setTimeout(showTargetBox, 50);
+        setDraggableImage(msg.targetPngBytes);
+      }
+    };
+
+    // redraw highlight when images load/resize
+    designImg.onload = () => setTimeout(showTargetBox, 50);
+    window.onresize = () => setTimeout(showTargetBox, 50);
+  </script>
+</body>
+</html>

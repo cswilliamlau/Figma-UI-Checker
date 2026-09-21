@@ -1,0 +1,8 @@
+{
+  "name": "UI Checker (No-Code版)",
+  "id": "ui-checker-simple",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"]
+}
